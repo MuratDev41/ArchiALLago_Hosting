@@ -291,11 +291,134 @@ def generate_yaml(game: str):
 @app.route("/game-options")
 @cache.cached()
 def game_options():
-    games = []
-    for game_name, world in AutoWorldRegister.world_types.items():
-        if not world.hidden and world.web.options_page is not False:
-            games.append({
-                'title': game_name,
-                'has_settings': True
+    available_games = []
+    custom_worlds_map = {}  # Initialize outside the if block
+    custom_worlds_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'custom_worlds')
+    
+    # Get list of custom worlds
+    if os.path.exists(custom_worlds_dir):
+        print(f"Custom worlds directory exists at: {custom_worlds_dir}")
+        print(f"Contents of directory: {os.listdir(custom_worlds_dir)}")
+        # Create a mapping of lowercase game names to their .apworld files
+        for f in os.listdir(custom_worlds_dir):
+            if f.endswith('.apworld'):
+                # Convert filename to a comparable format (lowercase, no underscores)
+                base_name = f.replace('.apworld', '').replace('_', ' ').lower()
+                custom_worlds_map[base_name] = f.replace('.apworld', '')
+        print(f"Found custom worlds map: {custom_worlds_map}")
+    else:
+        print(f"Custom worlds directory does not exist at: {custom_worlds_dir}")
+    
+    # Specific mappings for games that have .apworld files but different names
+    game_name_mappings = {
+        'another crabs treasure': 'another_crab',
+        'ape escape': 'apeescape',
+        'archipela-go!': 'apgo',
+        'an untitled story': 'aus',
+        'banjo-tooie': 'banjo_tooie',
+        'candy box 2': 'candybox2',
+        'celeste (open world)': 'celeste_open_world',
+        'donkey kong country 2': 'dkc2',
+        'dark souls remastered': 'dsr',
+        'ender lilies': 'enderlilies',
+        'final fantasy 12 open world': 'ff12_open_world',
+        'final fantasy iv free enterprise': 'ff4fe',
+        'final fantasy tactics advance': 'ffta',
+        'final fantasy tactics a2': 'ffta2',
+        'final fantasy xii trial mode': 'ffxiitm',
+        'final fantasy xiv': 'ffxiv',
+        'yu-gi-oh! forbidden memories': 'fm',
+        'golden sun the lost age': 'gstla',
+        'here comes niko!': 'hcniko',
+        'jak and daxter the precursor legacy': 'jakanddaxter',
+        'keymaster\'s keep': 'keymasters_keep',
+        'kingdom hearts birth by sleep': 'khbbs',
+        'kingdom hearts chain of memories': 'khcom',
+        'kingdom hearts re chain of memories': 'khrecom',
+        'kirby super star': 'kss',
+        'keep talking and nobody explodes': 'ktane',
+        'links awakening dx beta': 'ladx_beta',
+        'super mario land 2': 'marioland2',
+        'hatsune miku project diva mega mix+': 'megamix',
+        'metroid prime': 'metroidprime',
+        'mega man 3': 'mm3',
+        'mega man x': 'mmx',
+        'mega man x2': 'mmx2',
+        'mega man x3': 'mmx3',
+        'metroid zero mission': 'mzm',
+        'scooby-doo! night of 100 frights': 'no100f',
+        'ori and the blind forest': 'oribf',
+        'osu!': 'osu',
+        'paper mario': 'papermario',
+        'pokemon mystery dungeon explorers of sky': 'pmd_eos',
+        'pokemon firered and leafgreen': 'pokemon_frlg',
+        'ratchet & clank 2': 'rac2',
+        'resident evil 2 remake': 'residentevil2remake',
+        'risk of rain': 'ror1',
+        'sonic adventure dx': 'sadx',
+        'simon tatham\'s portable puzzle collection': 'sgtpuzzles',
+        'the simpsons hit and run': 'simpsonshitnrun',
+        'the sims 4': 'sims4',
+        'sly cooper and the thievius raccoonus': 'sly1',
+        'sonic riders': 'sonicriders',
+        'sonic heroes': 'sonic_heroes',
+        'castlevania - circle of the moon': 'sotn',
+        'soul blazer': 'soulblazer',
+        'spelunky 2': 'spelunky2',
+        'star fox 64': 'star_fox_64',
+        'star wars episode i racer': 'swr',
+        'the binding of isaac repentance': 'tboir',
+        'toejam and earl': 'tje',
+        'the legend of zelda - oracle of ages': 'tloz_ooa',
+        'the legend of zelda - oracle of seasons': 'tloz_oos',
+        'the minish cap': 'tmc',
+        'twilight princess': 'Twilight Princess',
+        'void stranger': 'voidstranger',
+        'wario land': 'wl',
+        'wario land 4': 'wl4',
+        'xcom 2 war of the chosen': 'x2wotc',
+        'yoku\'s island express': 'yoku',
+        'zelda ii: the adventure of link': 'zelda2'
+    }
+    
+    # Track unmatched games for debugging
+    unmatched_games = []
+    matched_games = []
+    
+    for game in AutoWorldRegister.world_types:
+        if not AutoWorldRegister.world_types[game].hidden:  # Only exclude hidden games
+            has_settings = bool(AutoWorldRegister.world_types[game].web.options_page)
+            # Check if this game has a matching .apworld file
+            game_key = game.lower().replace('_', ' ')
+            
+            # Try to find a match using the game name mappings
+            apworld_name = None
+            if game_key in game_name_mappings:
+                apworld_name = game_name_mappings[game_key]
+            elif game_key in custom_worlds_map:
+                apworld_name = custom_worlds_map[game_key]
+            
+            # Debug logging
+            if apworld_name:
+                matched_games.append((game, game_key))
+            else:
+                unmatched_games.append((game, game_key))
+            
+            available_games.append({ 
+                'title': game, 
+                'has_settings': has_settings,
+                'apworld_name': apworld_name
             })
-    return render_template("gameOptions.html", games=games)
+    
+    print("\nMatched games:")
+    for game, key in matched_games:
+        print(f"  {game} -> {key}")
+    
+    print("\nUnmatched games:")
+    for game, key in unmatched_games:
+        print(f"  {game} -> {key}")
+    
+    print(f"\nTotal games: {len(available_games)}")
+    print(f"Games with download buttons: {len([g for g in available_games if g['apworld_name'] is not None])}")
+    
+    return render_template("gameOptions.html", games=available_games, custom_worlds=custom_worlds_map)

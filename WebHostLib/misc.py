@@ -10,6 +10,7 @@ from werkzeug.utils import secure_filename
 from worlds.AutoWorld import AutoWorldRegister
 from . import app, cache
 from .models import Seed, Room, Command, UUID, uuid4
+from .tracker import TrackerData
 
 
 def get_world_theme(game_name: str):
@@ -213,7 +214,49 @@ def host_room(room: UUID):
         except FileNotFoundError:
             return ""
 
-    return render_template("hostRoom.html", room=room, should_refresh=should_refresh, get_log=get_log)
+    def get_player_status(tracker: UUID, team: int, player: int) -> str:
+        if not tracker:
+            return "unknown"
+        tracker_data = TrackerData(Room.get(tracker=tracker))
+        status = tracker_data.get_player_client_status(team, player)
+        return {
+            0: "disconnected",
+            5: "connected",
+            10: "ready",
+            20: "playing",
+            30: "goal_completed"
+        }.get(status, "unknown")
+
+    def get_player_last_active(tracker: UUID, team: int, player: int) -> str:
+        if not tracker:
+            return "Unknown"
+        tracker_data = TrackerData(Room.get(tracker=tracker))
+        last_active = tracker_data.get_player_last_activity(team, player)
+        if not last_active:
+            return "Unknown"
+        if last_active.days > 0:
+            return f"{last_active.days}d {last_active.seconds//3600}h ago"
+        if last_active.seconds >= 3600:
+            return f"{last_active.seconds//3600}h {last_active.seconds%3600//60}m ago"
+        if last_active.seconds >= 60:
+            return f"{last_active.seconds//60}m {last_active.seconds%60}s ago"
+        return f"{last_active.seconds}s ago"
+
+    def get_player_locations_found(tracker: UUID, team: int, player: int) -> str:
+        if not tracker:
+            return "-"
+        tracker_data = TrackerData(Room.get(tracker=tracker))
+        checked = len(tracker_data.get_player_checked_locations(team, player))
+        total = len(tracker_data.get_player_locations(team, player))
+        return f"{checked}/{total}"
+
+    return render_template("hostRoom.html", 
+                         room=room, 
+                         should_refresh=should_refresh, 
+                         get_log=get_log,
+                         get_player_status=get_player_status,
+                         get_player_last_active=get_player_last_active,
+                         get_player_locations_found=get_player_locations_found)
 
 
 @app.route('/favicon.ico')
@@ -246,3 +289,20 @@ def get_sitemap():
             has_settings: bool = isinstance(world.web.options_page, bool) and world.web.options_page
             available_games.append({ 'title': game, 'has_settings': has_settings })
     return render_template("siteMap.html", games=available_games)
+
+
+@app.route('/download-apworld/<game>')
+def download_apworld(game):
+    """Download the .apworld file for a custom world."""
+    custom_worlds_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'custom_worlds')
+    apworld_file = os.path.join(custom_worlds_dir, f"{game}.apworld")
+    
+    if os.path.exists(apworld_file):
+        return send_from_directory(
+            custom_worlds_dir,
+            f"{game}.apworld",
+            as_attachment=True,
+            download_name=f"{game}.apworld"
+        )
+    else:
+        abort(404)

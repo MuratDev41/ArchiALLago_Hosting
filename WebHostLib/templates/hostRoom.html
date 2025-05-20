@@ -14,191 +14,465 @@
     {% if room.last_port != -1 %}running on {{ config['HOST_ADDRESS'] }} with port {{ room.last_port }}{% endif %}">
     {% endif %}
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename="styles/hostRoom.css") }}"/>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 {% endblock %}
 
 {% block body %}
     {% include 'header/grassHeader.html' %}
     <div id="host-room">
-        <span id="host-room-info">
-            {% if room.owner == session["_id"] %}
-                Room created from <a href="{{ url_for("view_seed", seed=room.seed.id) }}">Seed #{{ room.seed.id|suuid }}</a>
-                <br />
-            {% endif %}
-            {% if room.tracker %}
-                This room has a <a href="{{ url_for("get_multiworld_tracker", tracker=room.tracker) }}">Multiworld Tracker</a>
-                and a <a href="{{ url_for("get_multiworld_sphere_tracker", tracker=room.tracker) }}">Sphere Tracker</a> enabled.
-                <br />
-            {% endif %}
-            The server for this room will be paused after {{ room.timeout//60//60 }} hours of inactivity.
-            Should you wish to continue later,
-            anyone can simply refresh this page and the server will resume.<br>
-            {% if room.last_port == -1 %}
-                There was an error hosting this Room. Another attempt will be made on refreshing this page.
-                The most likely failure reason is that the multiworld is too old to be loaded now.
-            {% elif room.last_port %}
-                You can connect to this room by using <span class="interactive"
-                data-tooltip="This means address/ip is {{ config['HOST_ADDRESS'] }} and port is {{ room.last_port }}.">
-                '/connect {{ config['HOST_ADDRESS'] }}:{{ room.last_port }}'
-                </span>
-                in the <a href="{{ url_for("tutorial_landing")}}">client</a>.<br>
-            {% endif %}
-        </span>
+        <!-- Room Info Card -->
+        <div class="room-info-card">
+            <div class="room-header">
+                <h1>Room #{{ room.id|suuid }}</h1>
+                {% if room.owner == session["_id"] %}
+                    <span class="owner-badge">Owner</span>
+                {% endif %}
+            </div>
+
+            <div class="room-details">
+                {% if room.owner == session["_id"] %}
+                    <p class="seed-link">
+                        Created from <a href="{{ url_for("view_seed", seed=room.seed.id) }}">Seed #{{ room.seed.id|suuid }}</a>
+                    </p>
+                {% endif %}
+
+                {% if room.tracker %}
+                    <div class="tracker-links">
+                        <a href="{{ url_for("get_multiworld_tracker", tracker=room.tracker) }}" class="tracker-link">
+                            <span class="icon">📊</span> Multiworld Tracker
+                        </a>
+                        <a href="{{ url_for("get_multiworld_sphere_tracker", tracker=room.tracker) }}" class="tracker-link">
+                            <span class="icon">🎯</span> Sphere Tracker
+                        </a>
+                    </div>
+                {% endif %}
+
+                <div class="connection-info">
+                    {% if room.last_port == -1 %}
+                        <div class="error-message">
+                            <span class="icon">⚠️</span>
+                            There was an error hosting this Room. Another attempt will be made on refreshing this page.
+                        </div>
+                    {% elif room.last_port %}
+                        <div class="connection-details">
+                            <span class="icon">🔌</span>
+                            <code class="connection-string">/connect {{ config['HOST_ADDRESS'] }}:{{ room.last_port }}</code>
+                            <span class="tooltip">Click to copy</span>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="timeout-info">
+                    <span class="icon">⏰</span>
+                    Server will pause after {{ room.timeout//60//60 }} hours of inactivity.
+                    Refresh this page to resume.
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Graph Section -->
+        <div class="graph-section">
+            <div class="section-header">
+                <h2>Progress Over Time</h2>
+                <div class="section-actions">
+                    <button class="refresh-button" onclick="updateInfo()">
+                        <span class="icon">🔄</span> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="graph-container">
+                <canvas id="progressChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Statistics Section -->
+        <div class="stats-section">
+            <div class="section-header">
+                <h2>Room Statistics</h2>
+                <span class="player-count">{{ room.seed.slots|length }} Players</span>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <h3>Players</h3>
+                    <div class="stat-content">
+                        <div class="stat-item">
+                            <span class="stat-value">{{ room.seed.slots|length }}</span>
+                            <span class="stat-label">Total</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">{{ room.seed.slots|selectattr("game")|list|length }}</span>
+                            <span class="stat-label">Active</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <h3>Games</h3>
+                    <div class="stat-content">
+                        <div class="stat-item">
+                            <span class="stat-value">{{ room.seed.slots|map(attribute="game")|unique|list|length }}</span>
+                            <span class="stat-label">Unique</span>
+                        </div>
+                        <div class="game-list">
+                            {% for game in room.seed.slots|map(attribute="game")|unique|sort %}
+                                <span class="game-tag">{{ game }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <h3>Activity</h3>
+                    <div class="stat-content">
+                        <div class="stat-item">
+                            <span class="stat-label">Created</span>
+                            <span class="stat-value">{{ room.creation_time.strftime("%Y-%m-%d %H:%M") }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Last Active</span>
+                            <span class="stat-value">{{ room.last_activity.strftime("%Y-%m-%d %H:%M") }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Progress Section -->
+        <div class="progress-section">
+            <div class="section-header">
+                <h2>Player Progress</h2>
+                <div class="section-actions">
+                    <button class="refresh-button" onclick="updateInfo()">
+                        <span class="icon">🔄</span> Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="progress-table">
+                    <thead>
+                        <tr>
+                            <th>Player</th>
+                            <th>Game</th>
+                            <th>Status</th>
+                            <th>Last Active</th>
+                            <th>Locations</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for slot in room.seed.slots|sort(attribute="player_id") %}
+                            <tr>
+                                <td>
+                                    <div class="player-info">
+                                        <span class="player-name">{{ slot.player_name }}</span>
+                                        <span class="player-id">#{{ slot.player_id }}</span>
+                                    </div>
+                                </td>
+                                <td>{{ slot.game }}</td>
+                                <td class="status-cell">
+                                    {% if room.tracker %}
+                                        <span class="status-indicator" data-status="{{ get_player_status(room.tracker, 0, slot.player_id) }}"></span>
+                                    {% else %}
+                                        <span class="status-indicator" data-status="unknown"></span>
+                                    {% endif %}
+                                </td>
+                                <td class="last-active">
+                                    {% if room.tracker %}
+                                        {{ get_player_last_active(room.tracker, 0, slot.player_id) }}
+                                    {% else %}
+                                        Unknown
+                                    {% endif %}
+                                </td>
+                                <td class="locations-found">
+                                    {% if room.tracker %}
+                                        {{ get_player_locations_found(room.tracker, 0, slot.player_id) }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         {{ macros.list_patches_room(room) }}
+
         {% if room.owner == session["_id"] %}
-            <div style="display: flex; align-items: center;">
-                <form method="post" id="command-form" style="flex-grow: 1; margin-right: 1em;">
-                    <div class="form-group">
-                        <label for="cmd"></label>
-                        <input class="form-control" type="text" id="cmd" name="cmd"
-                               placeholder="Server Command. /help to list them, list gets appended to log.">
+            <div class="command-section">
+                <form method="post" id="command-form">
+                    <div class="command-input">
+                        <input type="text" id="cmd" name="cmd" placeholder="Enter server command...">
+                        <button type="submit" class="send-button">
+                            <span class="icon">📤</span>
+                        </button>
                         <span class="loader"></span>
                     </div>
+                    <div class="command-help">
+                        Type /help to list available commands
+                    </div>
                 </form>
-                <a href="{{ url_for("display_log", room=room.id) }}">
-                    Open Log File...
+                <a href="{{ url_for("display_log", room=room.id) }}" class="log-link">
+                    <span class="icon">📋</span> View Log File
                 </a>
             </div>
-        {%  set log = get_log() -%}
-        {%- set log_len = log | length - 1 if log.endswith("…") else log | length -%}
-        <div id="logger" style="white-space: pre">{{ log }}</div>
-        <script>
-          let url = '{{ url_for('display_log', room = room.id) }}';
-          let bytesReceived = {{ log_len }};
-          let updateLogTimeout;
-          let updateLogImmediately = false;
-          let awaitingCommandResponse = false;
-          let logger = document.getElementById("logger");
 
-          function scrollToBottom(el) {
-            let bot = el.scrollHeight - el.clientHeight;
-            el.scrollTop += Math.ceil((bot - el.scrollTop)/10);
-            if (bot - el.scrollTop >= 1) {
-              window.clearTimeout(el.scrollTimer);
-              el.scrollTimer = window.setTimeout(() => {
-                scrollToBottom(el)
-              }, 16);
-            }
-          }
+            {% set log = get_log() %}
+            {% set log_len = log | length - 1 if log.endswith("…") else log | length %}
+            <div id="logger">{{ log }}</div>
+        {% endif %}
+    </div>
+    <script>
+        const url = "{{ url_for('display_log', room=room.id) }}";
+        const bytesReceived = "{{ log_len }}";
+        let updateLogTimeout;
+        let updateLogImmediately = false;
+        let awaitingCommandResponse = false;
+    </script>
+        let logger = document.getElementById("logger");
 
-          async function updateLog() {
+        function scrollToBottom(el) {
+            el.scrollTop = el.scrollHeight;
+        }
+
+        async function updateLog() {
             try {
-              if (!document.hidden) {
-                updateLogImmediately = false;
-                let res = await fetch(url, {
-                  headers: {
-                    'Range': `bytes=${bytesReceived}-`,
-                  }
-                });
-                if (res.ok) {
-                  let text = await res.text();
-                  if (text.length > 0) {
-                    awaitingCommandResponse = false;
-                    if (bytesReceived === 0 || res.status !== 206) {
-                      logger.innerHTML = '';
+                if (!document.hidden) {
+                    updateLogImmediately = false;
+                    let res = await fetch(url, {
+                        headers: {
+                            'Range': `bytes=${bytesReceived}-`,
+                        }
+                    });
+                    if (res.ok) {
+                        let text = await res.text();
+                        if (text.length > 0) {
+                            awaitingCommandResponse = false;
+                            if (bytesReceived === 0 || res.status !== 206) {
+                                logger.innerHTML = '';
+                            }
+                            if (res.status !== 206) {
+                                bytesReceived = 0;
+                            } else {
+                                bytesReceived += new Blob([text]).size;
+                            }
+                            if (logger.innerHTML.endsWith('…')) {
+                                logger.innerHTML = logger.innerHTML.substring(0, logger.innerHTML.length - 1);
+                            }
+                            logger.appendChild(document.createTextNode(text));
+                            scrollToBottom(logger);
+                            let loader = document.getElementById("command-form").getElementsByClassName("loader")[0];
+                            loader.classList.remove("loading");
+                        }
                     }
-                    if (res.status !== 206) {
-                      bytesReceived = 0;
-                    } else {
-                      bytesReceived += new Blob([text]).size;
-                    }
-                    if (logger.innerHTML.endsWith('…')) {
-                      logger.innerHTML = logger.innerHTML.substring(0, logger.innerHTML.length - 1);
-                    }
-                    logger.appendChild(document.createTextNode(text));
-                    scrollToBottom(logger);
-                    let loader = document.getElementById("command-form").getElementsByClassName("loader")[0];
-                    loader.classList.remove("loading");
-                  }
+                } else {
+                    updateLogImmediately = true;
                 }
-              } else {
-                updateLogImmediately = true;
-              }
             }
             finally {
-              window.clearTimeout(updateLogTimeout);
-              updateLogTimeout = window.setTimeout(updateLog, awaitingCommandResponse ? 500 : 10000);
+                window.clearTimeout(updateLogTimeout);
+                updateLogTimeout = window.setTimeout(updateLog, 2000); // Always update every 2 seconds
             }
-          }
+        }
 
-          async function postForm(ev) {
+        async function postForm(ev) {
+            ev.preventDefault(); // Prevent form submission and page reload
             /** @type {HTMLInputElement} */
             let cmd = document.getElementById("cmd");
             if (cmd.value === "") {
-              ev.preventDefault();
-              return;
+                return;
             }
             /** @type {HTMLFormElement} */
             let form = document.getElementById("command-form");
-            let req = fetch(form.action || window.location.href, {
-              method: form.method,
-              body: new FormData(form),
-              redirect: "manual",
-            });
-            ev.preventDefault(); // has to happen before first await
-            form.reset();
             let loader = form.getElementsByClassName("loader")[0];
             loader.classList.add("loading");
+            
             try {
-              let res = await req;
-              if (res.ok || res.type === 'opaqueredirect') {
-                awaitingCommandResponse = true;
-                window.clearTimeout(updateLogTimeout);
-                updateLogTimeout = window.setTimeout(updateLog, 100);
-              } else {
-                loader.classList.remove("loading");
-                window.alert(res.statusText);
-              }
+                let formData = new FormData(form);
+                let res = await fetch(form.action || window.location.href, {
+                    method: form.method,
+                    body: formData
+                });
+                
+                if (res.ok) {
+                    form.reset();
+                    awaitingCommandResponse = true;
+                    window.clearTimeout(updateLogTimeout);
+                    updateLogTimeout = window.setTimeout(updateLog, 100);
+                } else {
+                    loader.classList.remove("loading");
+                    window.alert(res.statusText);
+                }
             } catch (e) {
                 console.error(e);
                 loader.classList.remove("loading");
                 window.alert(e.message);
             }
-          }
+        }
 
-          document.getElementById("command-form").addEventListener("submit", postForm);
-          updateLogTimeout = window.setTimeout(updateLog, 1000);
-          logger.scrollTop = logger.scrollHeight;
-          document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && updateLogImmediately) {
-              updateLog();
+        document.addEventListener('DOMContentLoaded', function() {
+            const commandForm = document.getElementById("command-form");
+            if (commandForm) {
+                commandForm.addEventListener("submit", postForm);
             }
-          })
-        </script>
-        {% endif %}
-        <script>
-          function updateInfo() {
+            
+            updateLog(); // Initial update
+            updateLogTimeout = window.setTimeout(updateLog, 2000); // Start regular updates
+            
+            if (logger) {
+                scrollToBottom(logger);
+            }
+            
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden && updateLogImmediately) {
+                    updateLog();
+                }
+            });
+        });
+
+        // Add mutation observer to auto-scroll when content changes
+        const observer = new MutationObserver(() => {
+            scrollToBottom(logger);
+        });
+        observer.observe(logger, { childList: true, subtree: true });
+
+        function updateInfo() {
             let url = new URL(window.location.href);
             url.search = "?update";
             fetch(url)
-              .then(res => {
-                if (!res.ok) {
-                  throw new Error(`HTTP error ${res.status}`);
-                }
-                return res.text()
-              })
-              .then(text => new DOMParser().parseFromString(text, 'text/html'))
-              .then(newDocument => {
-                ["host-room-info", "slots-table"].forEach(function(id) {
-                  const newEl = newDocument.getElementById(id);
-                  const oldEl = document.getElementById(id);
-                  if (oldEl && newEl) {
-                    oldEl.innerHTML = newEl.innerHTML;
-                  } else if (newEl) {
-                    console.warn(`Did not find element to replace for ${id}`)
-                  }
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`HTTP error ${res.status}`);
+                    }
+                    return res.text()
+                })
+                .then(text => new DOMParser().parseFromString(text, 'text/html'))
+                .then(newDocument => {
+                    ["host-room-info", "slots-table", "room-stats", "player-progress"].forEach(function(id) {
+                        const newEl = newDocument.getElementById(id);
+                        const oldEl = document.getElementById(id);
+                        if (oldEl && newEl) {
+                            oldEl.innerHTML = newEl.innerHTML;
+                        } else if (newEl) {
+                            console.warn(`Did not find element to replace for ${id}`)
+                        }
+                    });
+                    updateProgressChart();
                 });
-            });
-          }
+        }
 
-          if (document.querySelector("meta[http-equiv='refresh']")) {
+        // Progress Chart
+        let progressChart = null;
+        let progressData = {
+            labels: [],
+            completedGames: [],
+            completedLocations: []
+        };
+
+        function updateProgressChart() {
+            if (!progressChart) {
+                const ctx = document.getElementById('progressChart').getContext('2d');
+                progressChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: progressData.labels,
+                        datasets: [
+                            {
+                                label: 'Completed Games',
+                                data: progressData.completedGames,
+                                borderColor: '#ffef00',
+                                backgroundColor: 'rgba(255, 239, 0, 0.1)',
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Completed Locations',
+                                data: progressData.completedLocations,
+                                borderColor: '#b5e9a4',
+                                backgroundColor: 'rgba(181, 233, 164, 0.1)',
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    color: '#eeffeb'
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#eeffeb'
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.1)'
+                                },
+                                ticks: {
+                                    color: '#eeffeb'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Update data
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            
+            // Get completed games count
+            let completedGames = 0;
+            {% if room.tracker %}
+                {% for slot in room.seed.slots %}
+                    if ("{{ get_player_status(room.tracker, 0, slot.player_id) }}" === "goal_completed") {
+                        completedGames++;
+                    }
+                {% endfor %}
+            {% endif %}
+
+            // Get completed locations count
+            let completedLocations = 0;
+            {% if room.tracker %}
+                {% for slot in room.seed.slots %}
+                    const locationData = "{{ get_player_locations_found(room.tracker, 0, slot.player_id) }}".split('/');
+                    if (locationData.length === 2) {
+                        completedLocations += parseInt(locationData[0]);
+                    }
+                {% endfor %}
+            {% endif %}
+
+            // Update chart data
+            progressData.labels.push(timeStr);
+            progressData.completedGames.push(completedGames);
+            progressData.completedLocations.push(completedLocations);
+
+            // Keep only last 20 data points
+            if (progressData.labels.length > 20) {
+                progressData.labels.shift();
+                progressData.completedGames.shift();
+                progressData.completedLocations.shift();
+            }
+
+            progressChart.update();
+        }
+
+        if (document.querySelector("meta[http-equiv='refresh']")) {
             console.log("Refresh!");
             window.addEventListener('load', function () {
-              for (let i=0; i<3; i++) {
-                window.setTimeout(updateInfo, Math.pow(2, i) * 2000); // 2, 4, 8s
-              }
-              window.stop(); // cancel meta refresh
+                updateProgressChart();
+                for (let i=0; i<3; i++) {
+                    window.setTimeout(updateInfo, Math.pow(2, i) * 2000); // 2, 4, 8s
+                }
+                window.stop(); // cancel meta refresh
             })
-          }
-        </script>
-    </div>
+        }
+    </script>
 {% endblock %}

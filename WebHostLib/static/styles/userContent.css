@@ -1,46 +1,205 @@
-#user-content-wrapper{
+#user-content-wrapper {
     display: flex;
     flex-direction: row;
     justify-content: center;
     flex-wrap: wrap;
+    padding: 2rem 1rem;
 }
 
-#user-content{
-    min-width: 900px;
-    text-align: center;
-}
-
-#user-content h1, #user-content h2{
-    margin-bottom: 6px;
-}
-
-#user-content h2{
-    margin-top: 10px;
-}
-
-#user-content table{
-    margin-left: auto;
-    margin-right: auto;
+#user-content {
+    width: 100%;
+    max-width: 1200px;
     text-align: left;
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    padding: 2rem;
 }
 
-#user-content table th, #user-content table td{
-    padding-right: 20px;
-}
-
-#user-content .center{
+/* Header Styles */
+.content-header {
+    margin-bottom: 2rem;
     text-align: center;
 }
 
-#user-content-table{
-    margin-right: auto;
+.content-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    color: #ffef00;
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    color: #eeffeb;
+    margin-bottom: 1rem;
+}
+
+.session-info {
+    color: #b5e9a4;
+}
+
+.session-link {
+    color: #ffef00;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.session-link:hover {
+    color: #fff;
+    text-decoration: underline;
+}
+
+/* Section Styles */
+.content-section {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+    font-size: 1.5rem;
+    color: #ffef00;
+    margin: 0;
+}
+
+.section-count {
+    background-color: rgba(255, 239, 0, 0.1);
+    color: #ffef00;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.9rem;
+}
+
+/* Table Styles */
+.table-container {
+    overflow-x: auto;
+    margin: 0 -1.5rem;
+    padding: 0 1.5rem;
+}
+
+.table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 0;
+}
+
+.table th {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: #ffef00;
+    font-weight: 500;
     text-align: left;
+    padding: 1rem;
+    border-bottom: 2px solid rgba(255, 239, 0, 0.2);
 }
 
-#user-content .table td.center{
+.table td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: #eeffeb;
+}
+
+.table tr:hover {
+    background-color: rgba(255, 239, 0, 0.05);
+}
+
+.table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Link Styles */
+.link-primary {
+    color: #b5e9a4;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.link-primary:hover {
+    color: #ffef00;
+    text-decoration: underline;
+}
+
+.delete-link {
+    color: #ff6b6b;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.delete-link:hover {
+    color: #ff4444;
+    text-decoration: underline;
+}
+
+/* Player Count */
+.player-count {
+    display: inline-block;
+    background-color: rgba(181, 233, 164, 0.1);
+    color: #b5e9a4;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.9rem;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: #b5e9a4;
+}
+
+.create-button {
+    display: inline-block;
+    background-color: rgba(255, 239, 0, 0.1);
+    color: #ffef00;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    text-decoration: none;
+    margin-top: 1rem;
+    transition: all 0.2s ease;
+}
+
+.create-button:hover {
+    background-color: rgba(255, 239, 0, 0.2);
+    transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    #user-content {
+        padding: 1rem;
+    }
+
+    .content-section {
+        padding: 1rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.75rem;
+    }
+
+    .content-header h1 {
+        font-size: 2rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+}
+
+/* Center alignment for specific columns */
+.center {
     text-align: center;
 }
 
-#user-content table.dataTable{
-    width: unset;
+/* DataTable overrides */
+.table.dataTable {
+    width: 100% !important;
 }
