@@ -222,12 +222,28 @@
     </div>
     <script>
         const url = "{{ url_for('display_log', room=room.id) }}";
-        const bytesReceived = "{{ log_len }}";
+        let bytesReceived = {{ log_len }};
         let updateLogTimeout;
         let updateLogImmediately = false;
         let awaitingCommandResponse = false;
-    </script>
         let logger = document.getElementById("logger");
+        
+        // Store template data in JavaScript variables
+        const playerStatuses = [
+            {% if room.tracker %}
+                {% for slot in room.seed.slots %}
+                    "{{ get_player_status(room.tracker, 0, slot.player_id) }}",
+                {% endfor %}
+            {% endif %}
+        ];
+        
+        const playerLocations = [
+            {% if room.tracker %}
+                {% for slot in room.seed.slots %}
+                    "{{ get_player_locations_found(room.tracker, 0, slot.player_id) }}",
+                {% endfor %}
+            {% endif %}
+        ];
 
         function scrollToBottom(el) {
             el.scrollTop = el.scrollHeight;
@@ -267,20 +283,21 @@
                     updateLogImmediately = true;
                 }
             }
+            catch (error) {
+                console.error("Error updating log:", error);
+            }
             finally {
                 window.clearTimeout(updateLogTimeout);
-                updateLogTimeout = window.setTimeout(updateLog, 2000); // Always update every 2 seconds
+                updateLogTimeout = window.setTimeout(updateLog, 2000);
             }
         }
 
         async function postForm(ev) {
-            ev.preventDefault(); // Prevent form submission and page reload
-            /** @type {HTMLInputElement} */
+            ev.preventDefault();
             let cmd = document.getElementById("cmd");
             if (cmd.value === "") {
                 return;
             }
-            /** @type {HTMLFormElement} */
             let form = document.getElementById("command-form");
             let loader = form.getElementsByClassName("loader")[0];
             loader.classList.add("loading");
@@ -314,8 +331,8 @@
                 commandForm.addEventListener("submit", postForm);
             }
             
-            updateLog(); // Initial update
-            updateLogTimeout = window.setTimeout(updateLog, 2000); // Start regular updates
+            updateLog();
+            updateLogTimeout = window.setTimeout(updateLog, 2000);
             
             if (logger) {
                 scrollToBottom(logger);
@@ -328,7 +345,6 @@
             });
         });
 
-        // Add mutation observer to auto-scroll when content changes
         const observer = new MutationObserver(() => {
             scrollToBottom(logger);
         });
@@ -359,7 +375,6 @@
                 });
         }
 
-        // Progress Chart
         let progressChart = null;
         let progressData = {
             labels: [],
@@ -424,37 +439,28 @@
                 });
             }
 
-            // Update data
             const now = new Date();
             const timeStr = now.toLocaleTimeString();
             
-            // Get completed games count
             let completedGames = 0;
-            {% if room.tracker %}
-                {% for slot in room.seed.slots %}
-                    if ("{{ get_player_status(room.tracker, 0, slot.player_id) }}" === "goal_completed") {
-                        completedGames++;
-                    }
-                {% endfor %}
-            {% endif %}
+            playerStatuses.forEach(status => {
+                if (status === "goal_completed") {
+                    completedGames++;
+                }
+            });
 
-            // Get completed locations count
             let completedLocations = 0;
-            {% if room.tracker %}
-                {% for slot in room.seed.slots %}
-                    const locationData = "{{ get_player_locations_found(room.tracker, 0, slot.player_id) }}".split('/');
-                    if (locationData.length === 2) {
-                        completedLocations += parseInt(locationData[0]);
-                    }
-                {% endfor %}
-            {% endif %}
+            playerLocations.forEach(locationStr => {
+                const locationData = locationStr.split('/');
+                if (locationData.length === 2) {
+                    completedLocations += parseInt(locationData[0]);
+                }
+            });
 
-            // Update chart data
             progressData.labels.push(timeStr);
             progressData.completedGames.push(completedGames);
             progressData.completedLocations.push(completedLocations);
 
-            // Keep only last 20 data points
             if (progressData.labels.length > 20) {
                 progressData.labels.shift();
                 progressData.completedGames.shift();
@@ -469,9 +475,9 @@
             window.addEventListener('load', function () {
                 updateProgressChart();
                 for (let i=0; i<3; i++) {
-                    window.setTimeout(updateInfo, Math.pow(2, i) * 2000); // 2, 4, 8s
+                    window.setTimeout(updateInfo, Math.pow(2, i) * 2000);
                 }
-                window.stop(); // cancel meta refresh
+                window.stop();
             })
         }
     </script>
